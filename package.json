@@ -1,0 +1,79 @@
+{
+  "name": "@theunwalked/overcontext",
+  "version": "0.0.1-dev.0",
+  "description": "Schema-driven framework for context management - provides infrastructure for defining and managing custom entity schemas.",
+  "type": "module",
+  "main": "./dist/overcontext.cjs",
+  "module": "./dist/overcontext.js",
+  "types": "./dist/overcontext.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utilarium/overcontext.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/overcontext.d.ts",
+      "import": "./dist/overcontext.js",
+      "require": "./dist/overcontext.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run lint && tsc --noEmit && vite build",
+    "dev": "vite build --watch",
+    "watch": "vite build --watch",
+    "test": "vitest run --coverage",
+    "precommit": "npm run lint && npm run test",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "context",
+    "schema",
+    "entity",
+    "framework",
+    "zod",
+    "storage",
+    "hierarchical",
+    "discovery"
+  ],
+  "author": "Tim O'Brien <tobrien@discursive.com>",
+  "license": "Apache-2.0",
+  "homepage": "https://utilarium.github.io/overcontext/",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.30.1",
+    "@rollup/plugin-replace": "^6.0.2",
+    "@swc/core": "^1.12.11",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.36.0",
+    "@typescript-eslint/parser": "^8.36.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "eslint": "^9.30.1",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^17.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.4",
+    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-node": "^7.0.0",
+    "vitest": "^4.0.16"
+  },
+  "overrides": {
+    "wrap-ansi": "7.0.0"
+  }
+}

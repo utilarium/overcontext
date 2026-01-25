@@ -1,0 +1,21 @@
+.env 
+dist
+node_modules
+package-lock.json
+*.log
+.vscode
+coverage/
+test/
+output/
+input/
+.cardigantime/
+pnpm-workspace.*
+RELEASE_NOTES.md
+RELEASE_TITLE.md
+
+# Documentation site build artifacts
+docs/dist/
+docs/node_modules/
+docs/public/README.md
+.kodrdriv-test-cache.json
+agentic-*.md
