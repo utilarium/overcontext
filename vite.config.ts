@@ -37,7 +37,7 @@ export default defineConfig({
     plugins: [
         ...VitePluginNode({
             adapter: 'express',
-            appPath: './src/overcontext.ts',
+            appPath: './src/index.ts',
             exportName: 'viteNodeApp',
             tsCompiler: 'swc',
             swcOptions: {
@@ -64,10 +64,10 @@ export default defineConfig({
         target: 'esnext',
         outDir: 'dist',
         lib: {
-            entry: './src/overcontext.ts',
+            entry: './src/index.ts',
         },
         rollupOptions: {
-            input: 'src/overcontext.ts',
+            input: 'src/index.ts',
             output: [
                 {
                     format: 'es',
@@ -79,7 +79,7 @@ export default defineConfig({
                 },
                 {
                     format: 'cjs',
-                    entryFileNames: 'overcontext.cjs',
+                    entryFileNames: 'index.cjs',
                     chunkFileNames: '[name].cjs',
                     preserveModules: false,
                     exports: 'named',

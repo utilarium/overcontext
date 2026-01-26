@@ -3,18 +3,18 @@
   "version": "0.0.1-dev.0",
   "description": "Schema-driven framework for context management - provides infrastructure for defining and managing custom entity schemas.",
   "type": "module",
-  "main": "./dist/overcontext.cjs",
-  "module": "./dist/overcontext.js",
-  "types": "./dist/overcontext.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/utilarium/overcontext.git"
   },
   "exports": {
     ".": {
-      "types": "./dist/overcontext.d.ts",
-      "import": "./dist/overcontext.js",
-      "require": "./dist/overcontext.cjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./package.json": "./package.json"
   },
