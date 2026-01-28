@@ -284,5 +284,3 @@ const results = await ctx.search({
 ## License
 
 Apache-2.0 © Tim O'Brien
-TEST
-TEST
