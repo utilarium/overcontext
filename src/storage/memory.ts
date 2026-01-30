@@ -2,6 +2,15 @@ import { StorageProvider, StorageProviderOptions, EntityFilter } from './interfa
 import { BaseEntity } from '../schema/base';
 import { ValidationError, ReadonlyStorageError } from './errors';
 
+/**
+ * Create a deep clone of an entity to prevent external mutation of stored data.
+ * Uses structured clone for proper handling of dates and nested objects.
+ */
+const cloneEntity = <T extends BaseEntity>(entity: T): T => {
+    // structuredClone handles Date objects properly
+    return structuredClone(entity);
+};
+
 export interface MemoryProviderOptions extends StorageProviderOptions {
     /** Initial data to populate */
     initialData?: BaseEntity[];
@@ -62,7 +71,9 @@ export const createMemoryProvider = (
             namespace?: string
         ): Promise<T | undefined> {
             const ns = resolveNamespace(namespace);
-            return getTypeStore(ns, type).get(id) as T | undefined;
+            const entity = getTypeStore(ns, type).get(id) as T | undefined;
+            // Return a defensive copy to prevent external mutation of stored data
+            return entity ? cloneEntity(entity) : undefined;
         },
 
         async getAll<T extends BaseEntity>(
@@ -70,7 +81,8 @@ export const createMemoryProvider = (
             namespace?: string
         ): Promise<T[]> {
             const ns = resolveNamespace(namespace);
-            return Array.from(getTypeStore(ns, type).values()) as T[];
+            // Return defensive copies to prevent external mutation
+            return Array.from(getTypeStore(ns, type).values()).map(e => cloneEntity(e as T));
         },
 
         async find<T extends BaseEntity>(filter: EntityFilter): Promise<T[]> {
@@ -134,8 +146,10 @@ export const createMemoryProvider = (
                 updatedAt: now,
             } as T;
 
-            getTypeStore(ns, entity.type).set(entity.id, saved);
-            return saved;
+            // Store a cloned copy to prevent external mutation from affecting stored data
+            getTypeStore(ns, entity.type).set(entity.id, cloneEntity(saved));
+            // Return a clone so caller can't mutate stored data through returned reference
+            return cloneEntity(saved);
         },
 
         async delete(type: string, id: string, namespace?: string): Promise<boolean> {
