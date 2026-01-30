@@ -128,8 +128,24 @@ export const createDirectoryWalker = (options: WalkerOptions): DirectoryWalker =
             const discovered: DiscoveredContextDir[] = [];
             let currentDir = path.resolve(startDir);
             let level = 0;
+            const visited = new Set<string>();
 
             while (level < maxLevels) {
+                // Resolve real path to handle symlinks and prevent cycles
+                let realPath: string;
+                try {
+                    realPath = await fs.realpath(currentDir);
+                } catch {
+                    // If realpath fails, use resolved path (may happen with permissions)
+                    realPath = currentDir;
+                }
+
+                // Check for symlink cycles
+                if (visited.has(realPath)) {
+                    break; // Already visited this real path, prevent infinite loop
+                }
+                visited.add(realPath);
+
                 const contextDir = path.join(currentDir, contextDirName);
 
                 if (existsSync(contextDir)) {
