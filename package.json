@@ -1,5 +1,5 @@
 {
-  "name": "@theunwalked/overcontext",
+  "name": "@utilarium/overcontext",
   "version": "0.0.4-dev.0",
   "description": "Schema-driven framework for context management - provides infrastructure for defining and managing custom entity schemas.",
   "type": "module",
@@ -32,7 +32,12 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "docs:dev": "cd docs && cp ../README.md public/ && npm install && npm run dev",
+    "docs:build": "cd docs && cp ../README.md public/ && npm install && npm run build",
+    "docs:preview": "cd docs && npm run preview",
+    "docs:test": "cd docs && npm install && npm run test",
+    "docs:coverage": "cd docs && npm install && npm run coverage"
   },
   "keywords": [
     "context",
