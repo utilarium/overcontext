@@ -48,8 +48,17 @@ export const createHierarchicalProvider = async (
     const findEntities = async <T extends BaseEntity>(filter: EntityFilter): Promise<T[]> => {
         const byId = new Map<string, T>();
 
+        // Create a filter without pagination - we'll apply pagination after merging
+        // This prevents double-pagination (sub-providers paginating, then us paginating again)
+        const filterWithoutPagination: EntityFilter = {
+            type: filter.type,
+            namespace: filter.namespace,
+            ids: filter.ids,
+            search: filter.search,
+        };
+
         for (const p of [...readProviders].reverse()) {
-            const results = await p.find<T>(filter);
+            const results = await p.find<T>(filterWithoutPagination);
             for (const entity of results) {
                 byId.set(entity.id, entity);
             }
@@ -57,6 +66,7 @@ export const createHierarchicalProvider = async (
 
         let results = Array.from(byId.values());
 
+        // Apply pagination once, after merging all results
         if (filter.offset) results = results.slice(filter.offset);
         if (filter.limit) results = results.slice(0, filter.limit);
 

@@ -75,6 +75,27 @@ export const createSearchEngine = (options: SearchEngineOptions): SearchEngine =
         return false;
     };
 
+    /**
+     * Check if a value looks like an ISO date string.
+     */
+    const isISODateString = (value: unknown): value is string => {
+        if (typeof value !== 'string') return false;
+        // Match ISO 8601 date format (YAML deserializes dates as ISO strings)
+        return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
+    };
+
+    /**
+     * Try to parse a value as a Date for comparison.
+     */
+    const toDateValue = (value: unknown): number | null => {
+        if (value instanceof Date) return value.getTime();
+        if (isISODateString(value)) {
+            const parsed = new Date(value);
+            return isNaN(parsed.getTime()) ? null : parsed.getTime();
+        }
+        return null;
+    };
+
     const sortEntities = <T extends BaseEntity>(
         entities: T[],
         sort: SortOption[]
@@ -89,10 +110,14 @@ export const createSearchEngine = (options: SearchEngineOptions): SearchEngine =
                 if (bVal === undefined || bVal === null) return direction === 'asc' ? -1 : 1;
 
                 let cmp: number;
-                if (typeof aVal === 'string' && typeof bVal === 'string') {
+
+                // Try date comparison first (handles both Date objects and ISO strings)
+                const aDate = toDateValue(aVal);
+                const bDate = toDateValue(bVal);
+                if (aDate !== null && bDate !== null) {
+                    cmp = aDate - bDate;
+                } else if (typeof aVal === 'string' && typeof bVal === 'string') {
                     cmp = aVal.localeCompare(bVal);
-                } else if (aVal instanceof Date && bVal instanceof Date) {
-                    cmp = aVal.getTime() - bVal.getTime();
                 } else {
                     cmp = aVal < bVal ? -1 : 1;
                 }

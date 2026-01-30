@@ -146,9 +146,18 @@ export const createFileSystemProvider = async (
                 return undefined;
             }
 
+            // Protect against prototype pollution from malicious YAML
+            // Only __proto__ is dangerous - constructor/prototype as string keys are safe
+            const parsedObj = parsed as Record<string, unknown>;
+            if (Object.prototype.hasOwnProperty.call(parsedObj, '__proto__')) {
+                // eslint-disable-next-line no-console
+                console.warn(`Potential prototype pollution attempt in ${filePath}: __proto__ key detected`);
+                return undefined;
+            }
+
             // Validate against registered schema
             const result = registry.validateAs<T>(type, {
-                ...(parsed as Record<string, unknown>),
+                ...parsedObj,
                 source: filePath,
             });
 
@@ -451,7 +460,15 @@ export const createFileSystemProvider = async (
 
         async listTypes(namespace?: string): Promise<string[]> {
             const ns = namespace ?? defaultNamespace;
-            const searchPath = ns ? path.join(basePath, ns) : basePath;
+            let searchPath: string;
+            if (ns) {
+                // Sanitize namespace to prevent path traversal
+                const safeNamespace = sanitizePathComponent(ns, 'namespace');
+                searchPath = path.join(basePath, safeNamespace);
+                verifyPathWithinBase(searchPath);
+            } else {
+                searchPath = basePath;
+            }
             return listDirectoryTypes(searchPath);
         },
     };
