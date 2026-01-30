@@ -1,7 +1,14 @@
 import { BaseEntity } from '../schema/base';
 import { SchemaRegistry } from '../schema/registry';
 import { StorageProvider } from '../storage/interface';
+import { StorageAccessError } from '../storage/errors';
 import { QueryOptions, QueryResult, SortOption } from './query';
+
+/**
+ * Maximum number of entities that can be loaded into memory during search.
+ * Prevents memory exhaustion with large datasets.
+ */
+const MAX_SEARCH_ENTITIES = 10000;
 
 export interface SearchEngine {
     /**
@@ -128,6 +135,15 @@ export const createSearchEngine = (options: SearchEngineOptions): SearchEngine =
                     const entities = await provider.getAll<T>(t, ns);
                     allEntities = allEntities.concat(entities);
                 }
+            }
+
+            // Check for memory exhaustion risk
+            if (allEntities.length > MAX_SEARCH_ENTITIES) {
+                throw new StorageAccessError(
+                    `Search returned too many results (${allEntities.length}). ` +
+                    `Please narrow your query by specifying types, namespaces, or search terms. ` +
+                    `Maximum allowed: ${MAX_SEARCH_ENTITIES} entities.`
+                );
             }
 
             // Apply ID filter
