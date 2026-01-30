@@ -1,6 +1,6 @@
 {
-  "name": "@theunwalked/overcontext",
-  "version": "0.0.3",
+  "name": "@utilarium/overcontext",
+  "version": "0.0.4",
   "description": "Schema-driven framework for context management - provides infrastructure for defining and managing custom entity schemas.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -32,7 +32,12 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "docs:dev": "cd docs && cp ../README.md public/ && npm install && npm run dev",
+    "docs:build": "cd docs && cp ../README.md public/ && npm install && npm run build",
+    "docs:preview": "cd docs && npm run preview",
+    "docs:test": "cd docs && npm install && npm run test",
+    "docs:coverage": "cd docs && npm install && npm run coverage"
   },
   "keywords": [
     "context",
@@ -52,7 +57,7 @@
   },
   "dependencies": {
     "js-yaml": "^4.1.1",
-    "zod": "^3.24.1"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

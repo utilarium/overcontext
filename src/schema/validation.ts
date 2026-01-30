@@ -19,7 +19,7 @@ export const validateBaseEntity = (data: unknown): ValidationResult<BaseEntity> 
 
     return {
         success: false,
-        errors: result.error.errors.map(e => ({
+        errors: result.error.issues.map(e => ({
             path: e.path.join('.'),
             message: e.message,
         })),
@@ -41,7 +41,7 @@ export const validateEntity = <T extends BaseEntity>(
 
     return {
         success: false,
-        errors: result.error.errors.map(e => ({
+        errors: result.error.issues.map(e => ({
             path: e.path.join('.'),
             message: e.message,
         })),
@@ -59,7 +59,7 @@ export const isBaseEntity = (data: unknown): data is BaseEntity => {
  * Format Zod errors into a readable message.
  */
 export const formatValidationErrors = (errors: ZodError): string => {
-    return errors.errors
+    return errors.issues
         .map(e => `${e.path.join('.')}: ${e.message}`)
         .join('; ');
 };

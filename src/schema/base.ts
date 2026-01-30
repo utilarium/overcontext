@@ -20,7 +20,12 @@ export type EntityMetadata = z.infer<typeof EntityMetadataSchema>;
  */
 export const BaseEntitySchema = z.object({
     /** Unique identifier within the entity type (used as filename) */
-    id: z.string().min(1),
+    id: z.string()
+        .min(1)
+        .max(255)
+        .regex(/^[a-zA-Z0-9][-a-zA-Z0-9_.]*$/, {
+            message: 'ID must be filesystem-safe: start with alphanumeric and contain only alphanumeric, hyphens, underscores, and dots',
+        }),
 
     /** Human-readable name (used for display and search) */
     name: z.string().min(1),

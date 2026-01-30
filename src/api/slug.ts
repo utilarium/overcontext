@@ -4,13 +4,43 @@
  * "API Reference" -> "api-reference"
  */
 export const slugify = (name: string): string => {
-    return name
+    const cleaned = name
         .toLowerCase()
         .trim()
         .replace(/[^\w\s-]/g, '')     // Remove non-word chars
-        .replace(/[\s_]+/g, '-')       // Replace spaces/underscores
-        .replace(/-+/g, '-')           // Collapse hyphens
-        .replace(/^-+|-+$/g, '');      // Trim leading/trailing
+        .replace(/[\s_]+/g, '-');     // Replace spaces/underscores
+    
+    // Single-pass algorithm to collapse hyphens and trim (avoid ReDoS)
+    const result: string[] = [];
+    let prevWasHyphen = false;
+    let startIdx = 0;
+    let endIdx = cleaned.length;
+    
+    // Skip leading hyphens
+    while (startIdx < cleaned.length && cleaned[startIdx] === '-') {
+        startIdx++;
+    }
+    
+    // Skip trailing hyphens
+    while (endIdx > startIdx && cleaned[endIdx - 1] === '-') {
+        endIdx--;
+    }
+    
+    // Build result, collapsing consecutive hyphens
+    for (let i = startIdx; i < endIdx; i++) {
+        const char = cleaned[i];
+        if (char === '-') {
+            if (!prevWasHyphen) {
+                result.push('-');
+                prevWasHyphen = true;
+            }
+        } else {
+            result.push(char);
+            prevWasHyphen = false;
+        }
+    }
+    
+    return result.join('');
 };
 
 /**

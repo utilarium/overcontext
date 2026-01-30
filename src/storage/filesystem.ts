@@ -40,20 +40,84 @@ export const createFileSystemProvider = async (
 
     // --- Helper Functions ---
 
+    /**
+     * Sanitize a path component to prevent directory traversal attacks.
+     * Rejects path separators, parent directory references, and other unsafe characters.
+     */
+    const sanitizePathComponent = (input: string, componentName: string): string => {
+        // Reject path separators and parent directory references
+        if (input.includes('/') || input.includes('\\') || input.includes('..')) {
+            throw new ValidationError(
+                `Invalid characters in ${componentName}: cannot contain path separators or ".."`,
+                [{ path: componentName, message: 'Path component cannot contain path separators or ".."' }]
+            );
+        }
+        // Reject null bytes and control characters
+        if (input.includes('\0')) {
+            throw new ValidationError(
+                `Invalid characters in ${componentName}: cannot contain null bytes`,
+                [{ path: componentName, message: 'Path component cannot contain null bytes' }]
+            );
+        }
+        // Check for control characters (0x00-0x1F and 0x7F)
+        for (let i = 0; i < input.length; i++) {
+            const code = input.charCodeAt(i);
+            if ((code >= 0 && code <= 0x1F) || code === 0x7F) {
+                throw new ValidationError(
+                    `Invalid characters in ${componentName}: cannot contain control characters`,
+                    [{ path: componentName, message: 'Path component cannot contain control characters' }]
+                );
+            }
+        }
+        return input;
+    };
+
+    /**
+     * Verify that a resolved path stays within the basePath to prevent path traversal.
+     */
+    const verifyPathWithinBase = (resolvedPath: string): void => {
+        const resolvedBase = path.resolve(basePath);
+        const resolvedTarget = path.resolve(resolvedPath);
+        
+        if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
+            throw new StorageAccessError('Path traversal attempt detected');
+        }
+    };
+
     const getEntityDir = (type: string, namespace?: string): string => {
         const dirName = registry.getDirectoryName(type);
         if (!dirName) {
             throw new SchemaNotRegisteredError(type);
         }
 
-        if (namespace) {
-            return path.join(basePath, namespace, dirName);
+        // Sanitize namespace if provided
+        const safeNamespace = namespace ? sanitizePathComponent(namespace, 'namespace') : undefined;
+        
+        // Sanitize directory name (should already be safe from registry, but double-check)
+        const safeDirName = sanitizePathComponent(dirName, 'directoryName');
+
+        let dir: string;
+        if (safeNamespace) {
+            dir = path.join(basePath, safeNamespace, safeDirName);
+        } else {
+            dir = path.join(basePath, safeDirName);
         }
-        return path.join(basePath, dirName);
+
+        // Verify the path stays within basePath
+        verifyPathWithinBase(dir);
+        return dir;
     };
 
     const getEntityPath = (type: string, id: string, namespace?: string): string => {
-        return path.join(getEntityDir(type, namespace), `${id}${extension}`);
+        // Sanitize ID to prevent path traversal
+        const safeId = sanitizePathComponent(id, 'id');
+        
+        const dir = getEntityDir(type, namespace);
+        const fullPath = path.join(dir, `${safeId}${extension}`);
+        
+        // Verify the final path stays within basePath
+        verifyPathWithinBase(fullPath);
+        return fullPath;
     };
 
     const ensureDir = async (dir: string): Promise<void> => {
@@ -82,9 +146,18 @@ export const createFileSystemProvider = async (
                 return undefined;
             }
 
+            // Protect against prototype pollution from malicious YAML
+            // Only __proto__ is dangerous - constructor/prototype as string keys are safe
+            const parsedObj = parsed as Record<string, unknown>;
+            if (Object.prototype.hasOwnProperty.call(parsedObj, '__proto__')) {
+                // eslint-disable-next-line no-console
+                console.warn(`Potential prototype pollution attempt in ${filePath}: __proto__ key detected`);
+                return undefined;
+            }
+
             // Validate against registered schema
             const result = registry.validateAs<T>(type, {
-                ...(parsed as Record<string, unknown>),
+                ...parsedObj,
                 source: filePath,
             });
 
@@ -376,13 +449,26 @@ export const createFileSystemProvider = async (
         },
 
         async namespaceExists(namespace: string): Promise<boolean> {
-            const namespacePath = path.join(basePath, namespace);
+            // Sanitize namespace to prevent path traversal
+            const safeNamespace = sanitizePathComponent(namespace, 'namespace');
+            const namespacePath = path.join(basePath, safeNamespace);
+            
+            // Verify path stays within basePath
+            verifyPathWithinBase(namespacePath);
             return existsSync(namespacePath);
         },
 
         async listTypes(namespace?: string): Promise<string[]> {
             const ns = namespace ?? defaultNamespace;
-            const searchPath = ns ? path.join(basePath, ns) : basePath;
+            let searchPath: string;
+            if (ns) {
+                // Sanitize namespace to prevent path traversal
+                const safeNamespace = sanitizePathComponent(ns, 'namespace');
+                searchPath = path.join(basePath, safeNamespace);
+                verifyPathWithinBase(searchPath);
+            } else {
+                searchPath = basePath;
+            }
             return listDirectoryTypes(searchPath);
         },
     };

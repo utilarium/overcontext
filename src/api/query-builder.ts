@@ -57,26 +57,34 @@ export class QueryBuilder {
 
     /**
      * Set result limit.
+     * Must be a positive integer (minimum 1).
      */
     limit(n: number): this {
-        this.options.limit = n;
+        this.options.limit = Math.max(1, Math.floor(n));
         return this;
     }
 
     /**
      * Set result offset.
+     * Must be a non-negative integer (minimum 0).
      */
     offset(n: number): this {
-        this.options.offset = n;
+        this.options.offset = Math.max(0, Math.floor(n));
         return this;
     }
 
     /**
      * Set page (calculates offset from limit).
+     * Page numbers are 1-indexed (first page is 1).
      */
     page(pageNum: number, pageSize: number): this {
-        this.options.limit = pageSize;
-        this.options.offset = (pageNum - 1) * pageSize;
+        // Ensure valid page number (minimum 1)
+        const safePage = Math.max(1, Math.floor(pageNum));
+        // Ensure valid page size (minimum 1)
+        const safeSize = Math.max(1, Math.floor(pageSize));
+        
+        this.options.limit = safeSize;
+        this.options.offset = (safePage - 1) * safeSize;
         return this;
     }
 

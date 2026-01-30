@@ -17,14 +17,14 @@ Overcontext provides infrastructure for defining and managing custom entity sche
 ## Installation
 
 ```bash
-npm install @theunwalked/overcontext zod
+npm install @utilarium/overcontext zod
 ```
 
 ## Quick Start
 
 ```typescript
 import { z } from 'zod';
-import { discoverOvercontext, BaseEntitySchema } from '@theunwalked/overcontext';
+import { discoverOvercontext, BaseEntitySchema } from '@utilarium/overcontext';
 
 // Define your schemas
 const PersonSchema = BaseEntitySchema.extend({
@@ -166,7 +166,7 @@ const results = await ctx.search({
 });
 
 // Query builder
-import { query } from '@theunwalked/overcontext';
+import { query } from '@utilarium/overcontext';
 
 const q = query()
   .type('person')
@@ -181,7 +181,7 @@ const results = await ctx.search(q);
 ### CLI Building
 
 ```typescript
-import { createCLIBuilder } from '@theunwalked/overcontext';
+import { createCLIBuilder } from '@utilarium/overcontext';
 
 const cli = createCLIBuilder({ api: ctx });
 
@@ -213,7 +213,7 @@ Full documentation: [https://utilarium.github.io/overcontext/](https://utilarium
 
 ```typescript
 import { z } from 'zod';
-import { discoverOvercontext, BaseEntitySchema } from '@theunwalked/overcontext';
+import { discoverOvercontext, BaseEntitySchema } from '@utilarium/overcontext';
 
 // Define your domain
 const PersonSchema = BaseEntitySchema.extend({

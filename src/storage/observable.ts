@@ -40,6 +40,7 @@ export const createObservableProvider = (
 
         async dispose(): Promise<void> {
             emit({ type: 'storage:disposed', timestamp: new Date() });
+            handlers.clear(); // Clear all handlers to prevent memory leaks
             await provider.dispose();
         },
 

@@ -31,7 +31,7 @@ Organize entities across multiple namespaces (work, personal, project-specific, 
 
 ```typescript
 import { z } from 'zod';
-import { discoverOvercontext, BaseEntitySchema } from '@theunwalked/overcontext';
+import { discoverOvercontext, BaseEntitySchema } from '@utilarium/overcontext';
 
 // Define your schema
 const PersonSchema = BaseEntitySchema.extend({
