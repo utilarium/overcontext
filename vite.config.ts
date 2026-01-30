@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePluginNode } from 'vite-plugin-node';
 import replace from '@rollup/plugin-replace';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import dts from 'vite-plugin-dts';
 
 let gitInfo = {
@@ -11,16 +11,33 @@ let gitInfo = {
     commitDate: '',
 };
 
+function execGitCommand(args: string[]): string {
+    const result = spawnSync('git', args, {
+        encoding: 'utf8',
+        shell: false,
+    });
+    if (result.error || result.status !== 0) {
+        throw result.error || new Error(`git command failed: ${args.join(' ')}`);
+    }
+    return result.stdout.trim();
+}
+
 try {
     gitInfo = {
-        branch: execSync('git rev-parse --abbrev-ref HEAD').toString().trim(),
-        commit: execSync('git rev-parse --short HEAD').toString().trim(),
+        branch: execGitCommand(['rev-parse', '--abbrev-ref', 'HEAD']),
+        commit: execGitCommand(['rev-parse', '--short', 'HEAD']),
         tags: '',
-        commitDate: execSync('git log -1 --format=%cd --date=iso').toString().trim(),
+        commitDate: execGitCommand(['log', '-1', '--format=%cd', '--date=iso']),
     };
 
     try {
-        gitInfo.tags = execSync('git tag --points-at HEAD | paste -sd "," -').toString().trim();
+        const tagsResult = spawnSync('git', ['tag', '--points-at', 'HEAD'], {
+            encoding: 'utf8',
+            shell: false,
+        });
+        if (tagsResult.status === 0 && tagsResult.stdout) {
+            gitInfo.tags = tagsResult.stdout.trim().split('\n').filter(Boolean).join(',');
+        }
     } catch {
         gitInfo.tags = '';
     }
