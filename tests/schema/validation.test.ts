@@ -78,7 +78,7 @@ describe('formatValidationErrors', () => {
         if (!result.success) {
             const formatted = formatValidationErrors(result.error);
             expect(formatted).toContain('name');
-            expect(formatted).toContain('Required');
+            expect(formatted).toContain('expected string');
         }
     });
 
