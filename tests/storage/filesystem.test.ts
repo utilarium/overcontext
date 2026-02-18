@@ -526,4 +526,459 @@ describe('FileSystemProvider', () => {
             expect(existsSync(filePath)).toBe(true);
         });
     });
+
+    describe('path sanitization', () => {
+        it('rejects ids containing forward slashes', async () => {
+            await expect(
+                provider.get('custom', '../etc/passwd')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects ids containing backslashes', async () => {
+            await expect(
+                provider.get('custom', 'foo\\bar')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects ids containing double dots', async () => {
+            await expect(
+                provider.get('custom', 'foo..bar')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects ids containing null bytes', async () => {
+            await expect(
+                provider.get('custom', 'foo\0bar')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects ids containing control characters', async () => {
+            await expect(
+                provider.get('custom', 'foo\x01bar')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects ids containing DEL character', async () => {
+            await expect(
+                provider.get('custom', 'foo\x7Fbar')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects namespace with path traversal', async () => {
+            await expect(
+                provider.get('custom', 'test1', '../escape')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects namespace containing backslash', async () => {
+            await expect(
+                provider.get('custom', 'test1', 'ns\\bad')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects namespace containing null bytes', async () => {
+            await expect(
+                provider.namespaceExists('ns\0bad')
+            ).rejects.toThrow(ValidationError);
+        });
+
+        it('rejects namespace containing control characters in listTypes', async () => {
+            await expect(
+                provider.listTypes('ns\x01bad')
+            ).rejects.toThrow(ValidationError);
+        });
+    });
+
+    describe('readEntity edge cases', () => {
+        it('skips YAML files that parse to non-object', async () => {
+            const customsDir = path.join(tempDir, 'customs');
+            await fs.mkdir(customsDir, { recursive: true });
+            await fs.writeFile(path.join(customsDir, 'scalar.yaml'), '"just a string"');
+
+            const all = await provider.getAll('custom');
+            expect(all).toEqual([]);
+        });
+
+        it('skips YAML files that parse to null', async () => {
+            const customsDir = path.join(tempDir, 'customs');
+            await fs.mkdir(customsDir, { recursive: true });
+            await fs.writeFile(path.join(customsDir, 'empty.yaml'), '');
+
+            const all = await provider.getAll('custom');
+            expect(all).toEqual([]);
+        });
+
+        it('detects __proto__ pollution attempts', async () => {
+            const customsDir = path.join(tempDir, 'customs');
+            await fs.mkdir(customsDir, { recursive: true });
+            const malicious = 'id: proto-test\nname: Test\ncustomField: val\n__proto__:\n  admin: true\n';
+            await fs.writeFile(path.join(customsDir, 'proto-test.yaml'), malicious);
+
+            const entity = await provider.get('custom', 'proto-test');
+            expect(entity).toBeUndefined();
+        });
+
+        it('skips entities that fail schema validation', async () => {
+            const customsDir = path.join(tempDir, 'customs');
+            await fs.mkdir(customsDir, { recursive: true });
+            const invalid = 'id: bad\nname: Bad\ntype: custom\n';
+            await fs.writeFile(path.join(customsDir, 'bad.yaml'), invalid);
+
+            const entity = await provider.get('custom', 'bad');
+            expect(entity).toBeUndefined();
+        });
+
+        it('wraps non-ENOENT read errors as StorageAccessError', async () => {
+            const customsDir = path.join(tempDir, 'customs');
+            await fs.mkdir(customsDir, { recursive: true });
+            const dirAsFile = path.join(customsDir, 'isdir.yaml');
+            await fs.mkdir(dirAsFile, { recursive: true });
+
+            await expect(
+                provider.get('custom', 'isdir')
+            ).rejects.toThrow(StorageAccessError);
+        });
+    });
+
+    describe('isAvailable', () => {
+        it('returns false when basePath does not exist', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'custom', schema: CustomSchema });
+
+            const nonExistent = await createFileSystemProvider({
+                basePath: path.join(tempDir, 'nonexistent-dir'),
+                registry,
+                createIfMissing: false,
+            });
+
+            expect(await nonExistent.isAvailable()).toBe(false);
+        });
+
+        it('returns false when basePath is a file not a directory', async () => {
+            const filePath = path.join(tempDir, 'afile.txt');
+            await fs.writeFile(filePath, 'not a dir');
+
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'custom', schema: CustomSchema });
+
+            const fileProvider = await createFileSystemProvider({
+                basePath: filePath,
+                registry,
+                createIfMissing: false,
+            });
+
+            expect(await fileProvider.isAvailable()).toBe(false);
+        });
+    });
+
+    describe('find edge cases', () => {
+        beforeEach(async () => {
+            await provider.save({ id: 't1', name: 'Alpha', type: 'custom', customField: 'v1' });
+            await provider.save({ id: 't2', name: 'Beta', type: 'custom', customField: 'v2' });
+            await provider.save({ id: 't3', name: 'Gamma', type: 'another', value: 10 });
+        });
+
+        it('filters by type as array', async () => {
+            const results = await provider.find({ type: ['custom', 'another'] });
+            expect(results).toHaveLength(3);
+        });
+
+        it('filters by ids', async () => {
+            const results = await provider.find({ ids: ['t1'] });
+            expect(results).toHaveLength(1);
+            expect(results[0].id).toBe('t1');
+        });
+
+        it('applies offset', async () => {
+            const all = await provider.find({ type: 'custom' });
+            const offset = await provider.find({ type: 'custom', offset: 1 });
+            expect(offset).toHaveLength(all.length - 1);
+        });
+
+        it('applies both offset and limit', async () => {
+            const results = await provider.find({ offset: 1, limit: 1 });
+            expect(results).toHaveLength(1);
+        });
+    });
+
+    describe('listNamespaces edge cases', () => {
+        it('returns empty when basePath does not exist', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'custom', schema: CustomSchema });
+
+            const noDir = await createFileSystemProvider({
+                basePath: path.join(tempDir, 'gone'),
+                registry,
+                createIfMissing: false,
+            });
+
+            const namespaces = await noDir.listNamespaces();
+            expect(namespaces).toEqual([]);
+        });
+
+        it('does not list entity-type directories as namespaces', async () => {
+            await provider.save({ id: 't1', name: 'Test', type: 'custom', customField: 'v' });
+
+            const namespaces = await provider.listNamespaces();
+            expect(namespaces).not.toContain('customs');
+        });
+
+        it('skips non-directory entries', async () => {
+            await fs.writeFile(path.join(tempDir, 'file.txt'), 'not a dir');
+
+            const namespaces = await provider.listNamespaces();
+            expect(namespaces).not.toContain('file.txt');
+        });
+    });
+
+    describe('listTypes edge cases', () => {
+        it('lists types without namespace', async () => {
+            await provider.save({ id: 't1', name: 'Test', type: 'custom', customField: 'v' });
+
+            const types = await provider.listTypes();
+            expect(types).toContain('custom');
+        });
+    });
+
+    describe('exists edge cases', () => {
+        it('returns false when exists throws an error', async () => {
+            const result = await provider.exists('custom', 'valid-id', 'non\x01existent');
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('ensureDir behavior', () => {
+        it('does not create directory when createIfMissing is false', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'custom', schema: CustomSchema });
+
+            const noCreate = await createFileSystemProvider({
+                basePath: tempDir,
+                registry,
+                createIfMissing: false,
+            });
+
+            await expect(
+                noCreate.save({ id: 't1', name: 'Test', type: 'custom', customField: 'v' })
+            ).rejects.toThrow();
+        });
+    });
+
+    describe('filenameStrategy', () => {
+        const SlugSchema = BaseEntitySchema.extend({
+            type: z.literal('slugged'),
+            slug: z.string(),
+            customField: z.string(),
+        });
+
+        let slugProvider: StorageProvider;
+
+        beforeEach(async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'slugged', schema: SlugSchema, pluralName: 'slugged' });
+
+            slugProvider = await createFileSystemProvider({
+                basePath: tempDir,
+                registry,
+                filenameStrategy: (entity) => {
+                    const slug = (entity as any).slug;
+                    if (slug) {
+                        return `${entity.id.substring(0, 8)}-${slug}`;
+                    }
+                    return entity.id;
+                },
+            });
+            await slugProvider.initialize();
+        });
+
+        it('saves with compound filename', async () => {
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            const filePath = path.join(tempDir, 'slugged', 'a1b2c3d4-gerald-corson.yaml');
+            expect(existsSync(filePath)).toBe(true);
+
+            const idPath = path.join(tempDir, 'slugged', 'a1b2c3d4-5678-9abc-def0-111111111111.yaml');
+            expect(existsSync(idPath)).toBe(false);
+        });
+
+        it('retrieves by id with compound filename', async () => {
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            const retrieved = await slugProvider.get('slugged', 'a1b2c3d4-5678-9abc-def0-111111111111');
+            expect(retrieved).toBeDefined();
+            expect(retrieved?.name).toBe('Gerald Corson');
+        });
+
+        it('checks exists with compound filename', async () => {
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            expect(await slugProvider.exists('slugged', 'a1b2c3d4-5678-9abc-def0-111111111111')).toBe(true);
+            expect(await slugProvider.exists('slugged', 'nonexistent')).toBe(false);
+        });
+
+        it('deletes with compound filename', async () => {
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            const deleted = await slugProvider.delete('slugged', 'a1b2c3d4-5678-9abc-def0-111111111111');
+            expect(deleted).toBe(true);
+
+            const filePath = path.join(tempDir, 'slugged', 'a1b2c3d4-gerald-corson.yaml');
+            expect(existsSync(filePath)).toBe(false);
+        });
+
+        it('migrates old id-based filename on save', async () => {
+            // Manually create a file with old id-based naming
+            const sluggedDir = path.join(tempDir, 'slugged');
+            await fs.mkdir(sluggedDir, { recursive: true });
+            const oldPath = path.join(sluggedDir, 'a1b2c3d4-5678-9abc-def0-111111111111.yaml');
+            const content = [
+                'id: a1b2c3d4-5678-9abc-def0-111111111111',
+                'name: Gerald Corson',
+                'slug: gerald-corson',
+                'customField: value',
+            ].join('\n');
+            await fs.writeFile(oldPath, content, 'utf-8');
+
+            // Save via provider with filenameStrategy — should rename
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            const newPath = path.join(sluggedDir, 'a1b2c3d4-gerald-corson.yaml');
+            expect(existsSync(newPath)).toBe(true);
+            expect(existsSync(oldPath)).toBe(false);
+        });
+
+        it('falls back to id when entity has no slug', async () => {
+            await slugProvider.save({
+                id: 'simple-id',
+                name: 'No Slug',
+                type: 'slugged',
+                slug: '',
+                customField: 'value',
+            } as any);
+
+            // filenameStrategy returns entity.id when slug is empty
+            const filePath = path.join(tempDir, 'slugged', 'simple-id.yaml');
+            expect(existsSync(filePath)).toBe(true);
+        });
+
+        it('handles getAll with mixed filename formats', async () => {
+            // Create one file with old naming
+            const sluggedDir = path.join(tempDir, 'slugged');
+            await fs.mkdir(sluggedDir, { recursive: true });
+            const oldContent = [
+                'id: old11111-1111-1111-1111-111111111111',
+                'name: Old Entity',
+                'slug: old-entity',
+                'customField: old',
+            ].join('\n');
+            await fs.writeFile(
+                path.join(sluggedDir, 'old11111-1111-1111-1111-111111111111.yaml'),
+                oldContent,
+                'utf-8'
+            );
+
+            // Create one file with new naming
+            await slugProvider.save({
+                id: 'new22222-2222-2222-2222-222222222222',
+                name: 'New Entity',
+                type: 'slugged',
+                slug: 'new-entity',
+                customField: 'new',
+            });
+
+            const all = await slugProvider.getAll('slugged');
+            expect(all).toHaveLength(2);
+        });
+
+        it('returns undefined when directory does not exist for findEntityFileById', async () => {
+            const result = await slugProvider.get('slugged', 'nonexistent-id');
+            expect(result).toBeUndefined();
+        });
+
+        it('resolves ambiguous prefix matches by reading entity id', async () => {
+            const sluggedDir = path.join(tempDir, 'slugged');
+            await fs.mkdir(sluggedDir, { recursive: true });
+
+            // Two files with same prefix but different ids
+            const content1 = [
+                'id: a1b2c3d4-1111-1111-1111-111111111111',
+                'name: Entity One',
+                'slug: entity-one',
+                'customField: one',
+            ].join('\n');
+            const content2 = [
+                'id: a1b2c3d4-2222-2222-2222-222222222222',
+                'name: Entity Two',
+                'slug: entity-two',
+                'customField: two',
+            ].join('\n');
+
+            await fs.writeFile(path.join(sluggedDir, 'a1b2c3d4-entity-one.yaml'), content1, 'utf-8');
+            await fs.writeFile(path.join(sluggedDir, 'a1b2c3d4-entity-two.yaml'), content2, 'utf-8');
+
+            const result = await slugProvider.get('slugged', 'a1b2c3d4-2222-2222-2222-222222222222');
+            expect(result).toBeDefined();
+            expect(result?.name).toBe('Entity Two');
+        });
+
+        it('returns false for delete when entity not found with filenameStrategy', async () => {
+            const result = await slugProvider.delete('slugged', 'nonexistent');
+            expect(result).toBe(false);
+        });
+
+        it('cleans up old file when writing same id with different filename', async () => {
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson',
+                type: 'slugged',
+                slug: 'gerald-corson',
+                customField: 'value',
+            });
+
+            const oldPath = path.join(tempDir, 'slugged', 'a1b2c3d4-gerald-corson.yaml');
+            expect(existsSync(oldPath)).toBe(true);
+
+            await slugProvider.save({
+                id: 'a1b2c3d4-5678-9abc-def0-111111111111',
+                name: 'Gerald Corson Updated',
+                type: 'slugged',
+                slug: 'gerald-corson-updated',
+                customField: 'updated',
+            });
+
+            const newPath = path.join(tempDir, 'slugged', 'a1b2c3d4-gerald-corson-updated.yaml');
+            expect(existsSync(newPath)).toBe(true);
+            expect(existsSync(oldPath)).toBe(false);
+        });
+    });
 });

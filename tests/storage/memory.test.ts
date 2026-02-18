@@ -402,4 +402,74 @@ describe('MemoryProvider', () => {
             expect(all).toHaveLength(0);
         });
     });
+
+    describe('edge cases', () => {
+        it('listTypes returns empty array for non-existing namespace', async () => {
+            const types = await provider.listTypes('nonexistent');
+            expect(types).toEqual([]);
+        });
+
+        it('listNamespaces excludes _default namespace', async () => {
+            await provider.save({
+                id: 'test1',
+                name: 'Test',
+                type: 'custom',
+                customField: 'value',
+            });
+
+            const namespaces = await provider.listNamespaces();
+            expect(namespaces).not.toContain('_default');
+        });
+
+        it('deleteBatch counts only successful deletes', async () => {
+            await provider.save({
+                id: 'test1',
+                name: 'Test 1',
+                type: 'custom',
+                customField: 'value1',
+            });
+
+            const count = await provider.deleteBatch([
+                { type: 'custom', id: 'test1' },
+                { type: 'custom', id: 'nonexistent' },
+            ]);
+
+            expect(count).toBe(1);
+        });
+
+        it('uses defaultNamespace in find when namespace not specified', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'custom', schema: CustomSchema });
+
+            const nsProvider = createMemoryProvider({
+                registry,
+                defaultNamespace: 'mydefault',
+            });
+
+            await nsProvider.save({
+                id: 'test1',
+                name: 'Test',
+                type: 'custom',
+                customField: 'value',
+            });
+
+            const results = await nsProvider.find({ type: 'custom' });
+            expect(results).toHaveLength(1);
+        });
+
+        it('prevents mutation of stored data through returned reference', async () => {
+            const entity = {
+                id: 'test1',
+                name: 'Original',
+                type: 'custom',
+                customField: 'value',
+            };
+
+            const saved = await provider.save(entity);
+            (saved as any).name = 'Mutated';
+
+            const retrieved = await provider.get('custom', 'test1');
+            expect(retrieved?.name).toBe('Original');
+        });
+    });
 });

@@ -5,7 +5,7 @@ Overcontext provides infrastructure for defining and managing custom entity sche
 ## Features
 
 - **Schema-Driven**: Register any Zod schema, get type-safe CRUD operations
-- **Storage Agnostic**: Filesystem and in-memory providers included
+- **Storage Agnostic**: Filesystem and in-memory providers included, with custom filename strategies
 - **Hierarchical Discovery**: Walk directory trees to find context at multiple levels
 - **Namespace Support**: Organize entities across multiple namespaces
 - **CLI Framework**: Reusable command builders for creating CLIs
@@ -116,6 +116,22 @@ await ctx.create('person', { name: 'Friend' }, { namespace: 'personal' });
 // Query specific namespace
 const workPeople = await ctx.getAll('person', 'work');
 ```
+
+### Custom Filenames
+
+By default, entity files are named by their `id` (e.g., `john-doe.yaml`). You can supply a `filenameStrategy` to generate custom filenames from entity fields:
+
+```typescript
+const ctx = await discoverOvercontext({
+  schemas: { person: PersonSchema },
+  filenameStrategy: (entity) => {
+    const slug = (entity as any).slug;
+    return slug ? `${entity.id.substring(0, 8)}-${slug}` : entity.id;
+  },
+});
+```
+
+See [Storage Providers](./storage-providers.md#custom-filename-strategy) for the full details on how lookups and file migration work.
 
 ## Requirements
 
