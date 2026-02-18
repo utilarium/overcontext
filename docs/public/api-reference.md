@@ -21,8 +21,19 @@ const ctx = await discoverOvercontext({
   },
   startDir?: string,
   contextDirName?: string,
+  readonly?: boolean,
+  filenameStrategy?: (entity: BaseEntity) => string,
 });
 ```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `schemas` | `SchemaMap` | *(required)* | Schemas to register |
+| `pluralNames` | `Record<string, string>` | `{}` | Custom plural names for directory mapping |
+| `startDir` | `string` | `process.cwd()` | Directory to start discovery from |
+| `contextDirName` | `string` | `'context'` | Name of context directories to discover |
+| `readonly` | `boolean` | `false` | Prevent write operations |
+| `filenameStrategy` | `(entity) => string` | `undefined` | Custom filename stem generation for entity files. Receives the entity, returns the filename without extension. When not provided, `entity.id` is used. |
 
 **Returns**: `ContextAPI` instance with type-safe CRUD operations.
 
@@ -152,8 +163,15 @@ import { createFileSystemProvider } from '@utilarium/overcontext';
 const provider = await createFileSystemProvider({
   basePath: string,
   registry: SchemaRegistry,
+  createIfMissing?: boolean,        // default: true
+  extension?: '.yaml' | '.yml',     // default: '.yaml'
+  readonly?: boolean,               // default: false
+  defaultNamespace?: string,
+  filenameStrategy?: (entity: BaseEntity) => string,
 });
 ```
+
+The `filenameStrategy` option allows custom filenames for entity files on disk. See [Storage Providers](./storage-providers.md#custom-filename-strategy) for details.
 
 ### createMemoryProvider
 
@@ -178,8 +196,12 @@ import { createHierarchicalProvider } from '@utilarium/overcontext';
 const provider = await createHierarchicalProvider({
   contextRoot: ContextRoot,
   registry: SchemaRegistry,
+  readonly?: boolean,
+  filenameStrategy?: (entity: BaseEntity) => string,
 });
 ```
+
+The `filenameStrategy` is passed through to all underlying filesystem providers.
 
 ## Schema Utilities
 

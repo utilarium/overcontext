@@ -8,6 +8,8 @@ export interface HierarchicalProviderOptions {
     contextRoot: ContextRoot;
     registry: SchemaRegistry;
     readonly?: boolean;
+    /** Custom filename strategy passed through to filesystem providers */
+    filenameStrategy?: (entity: BaseEntity) => string;
 }
 
 /**
@@ -17,7 +19,7 @@ export interface HierarchicalProviderOptions {
 export const createHierarchicalProvider = async (
     options: HierarchicalProviderOptions
 ): Promise<StorageProvider> => {
-    const { contextRoot, registry, readonly = false } = options;
+    const { contextRoot, registry, readonly = false, filenameStrategy } = options;
 
     if (contextRoot.contextPaths.length === 0) {
         throw new Error('No context directories found');
@@ -31,6 +33,7 @@ export const createHierarchicalProvider = async (
             registry,
             createIfMissing: false,
             readonly: true,
+            filenameStrategy,
         });
         await fsProvider.initialize();
         readProviders.push(fsProvider);
@@ -42,6 +45,7 @@ export const createHierarchicalProvider = async (
         registry,
         createIfMissing: true,
         readonly,
+        filenameStrategy,
     });
     await primaryProvider.initialize();
 

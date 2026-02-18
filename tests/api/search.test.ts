@@ -4,9 +4,12 @@ import {
     createTypedAPI,
     createMemoryProvider,
     createSchemaRegistry,
+    createSearchEngine,
     query,
     BaseEntitySchema,
     OvercontextAPI,
+    SearchEngine,
+    StorageProvider,
 } from '../../src';
 
 const PersonSchema = BaseEntitySchema.extend({
@@ -285,6 +288,194 @@ describe('SearchEngine', () => {
 
             expect(q.searchFields).toEqual(['field1', 'field2']);
         });
+
+        it('supports offset', () => {
+            const q = query()
+                .offset(10)
+                .build();
+
+            expect(q.offset).toBe(10);
+        });
+
+        it('clamps offset to minimum 0', () => {
+            const q = query()
+                .offset(-5)
+                .build();
+
+            expect(q.offset).toBe(0);
+        });
+
+        it('floors fractional offset', () => {
+            const q = query()
+                .offset(3.7)
+                .build();
+
+            expect(q.offset).toBe(3);
+        });
+
+        it('clamps limit to minimum 1', () => {
+            const q = query()
+                .limit(0)
+                .build();
+
+            expect(q.limit).toBe(1);
+        });
+
+        it('floors fractional limit', () => {
+            const q = query()
+                .limit(2.9)
+                .build();
+
+            expect(q.limit).toBe(2);
+        });
+
+        it('clamps page parameters to valid values', () => {
+            const q = query()
+                .page(0, 0)
+                .build();
+
+            expect(q.limit).toBe(1);
+            expect(q.offset).toBe(0);
+        });
+    });
+
+    describe('sort edge cases', () => {
+        it('handles sorting by date fields (ISO strings)', async () => {
+            const result = await api.search({
+                type: 'person',
+                sort: [{ field: 'createdAt', direction: 'asc' }],
+            });
+
+            expect(result.items).toHaveLength(3);
+            for (let i = 1; i < result.items.length; i++) {
+                const prev = new Date(result.items[i - 1].createdAt as unknown as string).getTime();
+                const curr = new Date(result.items[i].createdAt as unknown as string).getTime();
+                expect(prev).toBeLessThanOrEqual(curr);
+            }
+        });
+
+        it('handles sorting by date fields descending', async () => {
+            const result = await api.search({
+                type: 'person',
+                sort: [{ field: 'createdAt', direction: 'desc' }],
+            });
+
+            expect(result.items).toHaveLength(3);
+            for (let i = 1; i < result.items.length; i++) {
+                const prev = new Date(result.items[i - 1].createdAt as unknown as string).getTime();
+                const curr = new Date(result.items[i].createdAt as unknown as string).getTime();
+                expect(prev).toBeGreaterThanOrEqual(curr);
+            }
+        });
+
+        it('sorts with undefined values pushing them to end in asc order', async () => {
+            const result = await api.search({
+                type: 'person',
+                sort: [{ field: 'company', direction: 'asc' }],
+            });
+
+            expect(result.items).toHaveLength(3);
+        });
+
+        it('sorts with undefined values pushing them to start in desc order', async () => {
+            const result = await api.search({
+                type: 'person',
+                sort: [{ field: 'company', direction: 'desc' }],
+            });
+
+            expect(result.items).toHaveLength(3);
+        });
+
+        it('handles sorting by non-string non-date fields', async () => {
+            await api.create('term', { name: 'ZZZ', expansion: 'last' });
+            await api.create('term', { name: 'AAA', expansion: 'first' });
+
+            const result = await api.search({
+                type: 'term',
+                sort: [{ field: 'name', direction: 'asc' }],
+            });
+
+            expect(result.items[0].name).toBe('AAA');
+        });
+    });
+
+    describe('search field edge cases', () => {
+        it('does not match non-string, non-array field values', async () => {
+            const result = await api.search({
+                search: '42',
+                searchFields: ['company'],
+                type: 'person',
+            });
+
+            expect(result.items.every(i => i.name.includes('42') || (i as any).company?.includes('42'))).toBe(true);
+        });
+
+        it('handles array fields containing non-string items', async () => {
+            const result = await api.search({
+                search: 'jon',
+                searchFields: ['soundsLike'],
+                type: 'person',
+            });
+
+            expect(result.items).toHaveLength(1);
+            expect(result.items[0].name).toBe('John Smith');
+        });
+
+        it('handles case sensitive search with matching case', async () => {
+            const result = await api.search({
+                search: 'John',
+                caseSensitive: true,
+            });
+
+            expect(result.items.length).toBeGreaterThan(0);
+        });
+
+        it('searches additional fields case sensitively', async () => {
+            const result = await api.search({
+                search: 'acme',
+                searchFields: ['company'],
+                caseSensitive: true,
+                type: 'person',
+            });
+
+            expect(result.items).toHaveLength(0);
+        });
+
+        it('searches additional fields case insensitively', async () => {
+            const result = await api.search({
+                search: 'acme',
+                searchFields: ['company'],
+                caseSensitive: false,
+                type: 'person',
+            });
+
+            expect(result.items).toHaveLength(2);
+        });
+    });
+
+    describe('pagination edge cases', () => {
+        it('returns hasMore false when no limit is set', async () => {
+            const result = await api.search({});
+            expect(result.hasMore).toBe(false);
+        });
+
+        it('returns hasMore false when limit equals total', async () => {
+            const result = await api.search({
+                type: 'person',
+                limit: 3,
+            });
+
+            expect(result.hasMore).toBe(false);
+            expect(result.total).toBe(3);
+        });
+
+        it('applies offset without limit', async () => {
+            const all = await api.search({ type: 'person' });
+            const offset = await api.search({ type: 'person', offset: 1 });
+
+            expect(offset.items).toHaveLength(all.total - 1);
+            expect(offset.total).toBe(all.total);
+        });
     });
 
     describe('namespace search', () => {
@@ -311,5 +502,151 @@ describe('SearchEngine', () => {
 
             expect(result.items).toHaveLength(2);
         });
+    });
+});
+
+describe('SearchEngine sort internals', () => {
+    const NumericSchema = BaseEntitySchema.extend({
+        type: z.literal('scored'),
+        score: z.number(),
+        invalidDate: z.string().optional(),
+    });
+
+    let searchEngine: SearchEngine;
+    let provider: StorageProvider;
+
+    beforeEach(async () => {
+        const registry = createSchemaRegistry();
+        registry.register({ type: 'scored', schema: NumericSchema, pluralName: 'scored' });
+
+        provider = createMemoryProvider({ registry });
+        await provider.initialize();
+
+        searchEngine = createSearchEngine({ provider, registry });
+    });
+
+    it('sorts by numeric fields using generic comparison', async () => {
+        await provider.save({ id: 'low', name: 'Low', type: 'scored', score: 10 });
+        await provider.save({ id: 'high', name: 'High', type: 'scored', score: 99 });
+        await provider.save({ id: 'mid', name: 'Mid', type: 'scored', score: 50 });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'score', direction: 'asc' }],
+        });
+
+        expect(result.items[0].id).toBe('low');
+        expect(result.items[1].id).toBe('mid');
+        expect(result.items[2].id).toBe('high');
+    });
+
+    it('sorts numeric fields descending', async () => {
+        await provider.save({ id: 'low', name: 'Low', type: 'scored', score: 10 });
+        await provider.save({ id: 'high', name: 'High', type: 'scored', score: 99 });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'score', direction: 'desc' }],
+        });
+
+        expect(result.items[0].id).toBe('high');
+        expect(result.items[1].id).toBe('low');
+    });
+
+    it('handles sort with null values in asc order', async () => {
+        await provider.save({ id: 'has', name: 'Has', type: 'scored', score: 10 });
+        await provider.save({ id: 'missing', name: 'Missing', type: 'scored', score: 0 });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'invalidDate', direction: 'asc' }],
+        });
+
+        expect(result.items).toHaveLength(2);
+    });
+
+    it('handles sort with null values in desc order', async () => {
+        await provider.save({ id: 'a', name: 'A', type: 'scored', score: 1 });
+        await provider.save({ id: 'b', name: 'B', type: 'scored', score: 2, invalidDate: 'has value' });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'invalidDate', direction: 'desc' }],
+        });
+
+        expect(result.items).toHaveLength(2);
+    });
+
+    it('handles fields with ISO-format strings that are invalid dates', async () => {
+        await provider.save({
+            id: 'bad-date',
+            name: 'Bad Date',
+            type: 'scored',
+            score: 1,
+            invalidDate: '9999-99-99T99:99:99',
+        });
+        await provider.save({
+            id: 'good',
+            name: 'Good',
+            type: 'scored',
+            score: 2,
+            invalidDate: '2024-01-15T10:30:00',
+        });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'invalidDate', direction: 'asc' }],
+        });
+
+        expect(result.items).toHaveLength(2);
+    });
+
+    it('handles equal values in sort continuing to next field', async () => {
+        await provider.save({ id: 'a', name: 'Same', type: 'scored', score: 10 });
+        await provider.save({ id: 'b', name: 'Same', type: 'scored', score: 20 });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'name', direction: 'asc' }, { field: 'score', direction: 'asc' }],
+        });
+
+        expect(result.items[0].id).toBe('a');
+        expect(result.items[1].id).toBe('b');
+    });
+
+    it('returns 0 when all sort fields are equal', async () => {
+        await provider.save({ id: 'a', name: 'Same', type: 'scored', score: 10 });
+        await provider.save({ id: 'b', name: 'Same', type: 'scored', score: 10 });
+
+        const result = await searchEngine.search({
+            type: 'scored',
+            sort: [{ field: 'name', direction: 'asc' }, { field: 'score', direction: 'asc' }],
+        });
+
+        expect(result.items).toHaveLength(2);
+    });
+
+    it('handles search field with non-string value', async () => {
+        await provider.save({ id: 'a', name: 'Alpha', type: 'scored', score: 42 });
+
+        const result = await searchEngine.search({
+            search: '42',
+            searchFields: ['score'],
+            type: 'scored',
+        });
+
+        expect(result.items).toHaveLength(0);
+    });
+
+    it('handles text match when text is undefined', async () => {
+        await provider.save({ id: 'a', name: 'Alpha', type: 'scored', score: 1 });
+
+        const result = await searchEngine.search({
+            search: 'something',
+            searchFields: ['invalidDate'],
+            type: 'scored',
+        });
+
+        expect(result.items).toHaveLength(0);
     });
 });

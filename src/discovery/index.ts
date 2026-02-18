@@ -18,6 +18,13 @@ export interface DiscoverOptions<TSchemas extends SchemaMap> extends ContextRoot
 
     /** Whether context is readonly */
     readonly?: boolean;
+
+    /**
+     * Custom filename strategy for entity files.
+     * Given an entity, returns the filename stem (without extension).
+     * When not provided, entity.id is used as the filename.
+     */
+    filenameStrategy?: (entity: BaseEntity) => string;
 }
 
 /**
@@ -26,7 +33,7 @@ export interface DiscoverOptions<TSchemas extends SchemaMap> extends ContextRoot
 export const discoverOvercontext = async <TSchemas extends SchemaMap>(
     options: DiscoverOptions<TSchemas>
 ): Promise<OvercontextAPI<TSchemas>> => {
-    const { schemas, pluralNames = {}, readonly, ...rootOptions } = options;
+    const { schemas, pluralNames = {}, readonly, filenameStrategy, ...rootOptions } = options;
 
     // Create registry
     const registry = createSchemaRegistry();
@@ -53,6 +60,7 @@ export const discoverOvercontext = async <TSchemas extends SchemaMap>(
         contextRoot,
         registry,
         readonly,
+        filenameStrategy,
     });
 
     // Create context API

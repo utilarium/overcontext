@@ -24,6 +24,15 @@ export interface FileSystemProviderOptions extends StorageProviderOptions {
 
     /** File extension to use (default: .yaml) */
     extension?: '.yaml' | '.yml';
+
+    /**
+     * Custom filename strategy. Given an entity, returns the filename stem (without extension).
+     * When not provided, entity.id is used as the filename.
+     * 
+     * Example: `(entity) => \`\${entity.id.substring(0, 8)}-\${entity.slug}\``
+     * would produce filenames like `d00acdc4-gerald-corson.yaml`
+     */
+    filenameStrategy?: (entity: BaseEntity) => string;
 }
 
 export const createFileSystemProvider = async (
@@ -36,6 +45,7 @@ export const createFileSystemProvider = async (
         extension = '.yaml',
         readonly = false,
         defaultNamespace,
+        filenameStrategy,
     } = options;
 
     // --- Helper Functions ---
@@ -120,6 +130,66 @@ export const createFileSystemProvider = async (
         return fullPath;
     };
 
+    const getEntityPathForWrite = (entity: BaseEntity, namespace?: string): string => {
+        if (!filenameStrategy) {
+            return getEntityPath(entity.type, entity.id, namespace);
+        }
+
+        const filename = filenameStrategy(entity);
+        const safeFilename = sanitizePathComponent(filename, 'filename');
+        const dir = getEntityDir(entity.type, namespace);
+        const fullPath = path.join(dir, `${safeFilename}${extension}`);
+        verifyPathWithinBase(fullPath);
+        return fullPath;
+    };
+
+    /**
+     * Find the actual file path for an entity by id, handling custom filename strategies.
+     * Tries direct {id}{ext} first, then scans the directory using id prefix matching.
+     */
+    const findEntityFileById = async (type: string, id: string, namespace?: string): Promise<string | undefined> => {
+        const directPath = getEntityPath(type, id, namespace);
+        if (existsSync(directPath)) {
+            return directPath;
+        }
+
+        if (!filenameStrategy) {
+            return undefined;
+        }
+
+        let dir: string;
+        try {
+            dir = getEntityDir(type, namespace);
+        } catch {
+            return undefined;
+        }
+
+        if (!existsSync(dir)) {
+            return undefined;
+        }
+
+        const prefix = id.substring(0, Math.min(8, id.length));
+        const files = await fs.readdir(dir);
+        const candidates = files.filter(f =>
+            (f.endsWith('.yaml') || f.endsWith('.yml')) && f.startsWith(prefix)
+        );
+
+        if (candidates.length === 1) {
+            return path.join(dir, candidates[0]);
+        }
+
+        // Multiple prefix matches — read and verify the id field
+        for (const file of candidates) {
+            const filePath = path.join(dir, file);
+            const entity = await readEntity(filePath, type);
+            if (entity && entity.id === id) {
+                return filePath;
+            }
+        }
+
+        return undefined;
+    };
+
     const ensureDir = async (dir: string): Promise<void> => {
         if (!existsSync(dir) && createIfMissing && !readonly) {
             await fs.mkdir(dir, { recursive: true });
@@ -196,7 +266,15 @@ export const createFileSystemProvider = async (
         const dir = getEntityDir(entity.type, namespace);
         await ensureDir(dir);
 
-        const filePath = getEntityPath(entity.type, entity.id, namespace);
+        const filePath = getEntityPathForWrite(entity, namespace);
+
+        // If filenameStrategy is set, clean up any old file with a different name for the same id
+        if (filenameStrategy) {
+            const oldPath = await findEntityFileById(entity.type, entity.id, namespace);
+            if (oldPath && path.resolve(oldPath) !== path.resolve(filePath)) {
+                try { await fs.unlink(oldPath); } catch { /* best-effort cleanup */ }
+            }
+        }
 
         // Remove framework-managed fields from saved YAML
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -281,6 +359,11 @@ export const createFileSystemProvider = async (
             namespace?: string
         ): Promise<T | undefined> {
             const ns = namespace ?? defaultNamespace;
+            if (filenameStrategy) {
+                const filePath = await findEntityFileById(type, id, ns);
+                if (!filePath) return undefined;
+                return readEntity<T>(filePath, type);
+            }
             const filePath = getEntityPath(type, id, ns);
             return readEntity<T>(filePath, type);
         },
@@ -363,6 +446,10 @@ export const createFileSystemProvider = async (
         async exists(type: string, id: string, namespace?: string): Promise<boolean> {
             const ns = namespace ?? defaultNamespace;
             try {
+                if (filenameStrategy) {
+                    const filePath = await findEntityFileById(type, id, ns);
+                    return filePath !== undefined;
+                }
                 const filePath = getEntityPath(type, id, ns);
                 return existsSync(filePath);
             } catch {
@@ -388,6 +475,12 @@ export const createFileSystemProvider = async (
             const ns = namespace ?? defaultNamespace;
 
             try {
+                if (filenameStrategy) {
+                    const filePath = await findEntityFileById(type, id, ns);
+                    if (!filePath) return false;
+                    await fs.unlink(filePath);
+                    return true;
+                }
                 const filePath = getEntityPath(type, id, ns);
                 await fs.unlink(filePath);
                 return true;

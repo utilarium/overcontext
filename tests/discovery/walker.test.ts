@@ -138,6 +138,124 @@ describe('DirectoryWalker', () => {
 
             expect(discovered).toEqual([]);
         });
+
+        it('detects namespaces in context directories', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'person', schema: BaseEntitySchema, pluralName: 'people' });
+
+            // Create namespace structure: context/work/people/
+            await fs.mkdir(path.join(nestedDir, 'context', 'work', 'people'), { recursive: true });
+
+            const walker = createDirectoryWalker({
+                startDir: nestedDir,
+                contextDirName: 'context',
+                maxLevels: 1,
+                registry,
+            });
+
+            const discovered = await walker.discover();
+            expect(discovered).toHaveLength(1);
+            expect(discovered[0].namespaces).toContain('work');
+        });
+
+        it('detects types by yaml file presence without registry', async () => {
+            // Create a directory with yaml files but no registry
+            await fs.writeFile(
+                path.join(nestedDir, 'context', 'people', 'test.yaml'),
+                'id: test\nname: Test\n'
+            );
+
+            const walker = createDirectoryWalker({
+                startDir: nestedDir,
+                contextDirName: 'context',
+                maxLevels: 1,
+            });
+
+            const discovered = await walker.discover();
+            expect(discovered).toHaveLength(1);
+            expect(discovered[0].types).toContain('people');
+        });
+
+        it('detects namespaces without registry when subdirs exist', async () => {
+            // Create namespace-like structure without registry:
+            // context/myns/sometype/
+            await fs.mkdir(path.join(nestedDir, 'context', 'myns', 'sometype'), { recursive: true });
+
+            const walker = createDirectoryWalker({
+                startDir: nestedDir,
+                contextDirName: 'context',
+                maxLevels: 1,
+            });
+
+            const discovered = await walker.discover();
+            expect(discovered).toHaveLength(1);
+            // 'people' is a type dir (has no yaml), 'myns' should be a namespace (has subdir)
+            expect(discovered[0].namespaces).toContain('myns');
+        });
+
+        it('handles directory that cannot be read in getNamespacesAndTypes', async () => {
+            const walker = createDirectoryWalker({
+                startDir: path.join(tempDir, 'nonexistent'),
+                contextDirName: 'context',
+                maxLevels: 1,
+            });
+
+            const discovered = await walker.discover();
+            // maxLevels=1 from nonexistent dir won't find context at the tempDir level
+            expect(discovered).toEqual([]);
+        });
+
+        it('skips non-directory entries in context dir', async () => {
+            // Create a file in context dir (not a directory)
+            await fs.writeFile(path.join(nestedDir, 'context', 'README.md'), '# Notes');
+
+            const walker = createDirectoryWalker({
+                startDir: nestedDir,
+                contextDirName: 'context',
+                maxLevels: 1,
+            });
+
+            const discovered = await walker.discover();
+            expect(discovered).toHaveLength(1);
+            expect(discovered[0].types).not.toContain('README.md');
+        });
+
+        it('does not duplicate types', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'person', schema: BaseEntitySchema, pluralName: 'people' });
+
+            const walker = createDirectoryWalker({
+                startDir: nestedDir,
+                contextDirName: 'context',
+                maxLevels: 1,
+                registry,
+            });
+
+            const discovered = await walker.discover();
+            const personCount = discovered[0].types.filter(t => t === 'person').length;
+            expect(personCount).toBe(1);
+        });
+
+        it('handles symlink cycles without infinite loops', async () => {
+            const linkDir = path.join(tempDir, 'link-test');
+            await fs.mkdir(linkDir, { recursive: true });
+
+            try {
+                await fs.symlink(linkDir, path.join(linkDir, 'selflink'));
+            } catch {
+                // Symlinks may not be supported in all environments; skip
+                return;
+            }
+
+            const walker = createDirectoryWalker({
+                startDir: path.join(linkDir, 'selflink'),
+                contextDirName: 'context',
+                maxLevels: 50,
+            });
+
+            const discovered = await walker.discover();
+            expect(Array.isArray(discovered)).toBe(true);
+        });
     });
 
     describe('hasContext', () => {

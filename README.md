@@ -126,6 +126,22 @@ const workPeople = await ctx.getAll('person', 'work');
 - **Hierarchical**: Multi-level discovery with override behavior
 - **Custom**: Implement your own
 
+### Custom Filenames
+
+Control how entity files are named on disk with a filename strategy:
+
+```typescript
+const ctx = await discoverOvercontext({
+  schemas: { person: PersonSchema },
+  filenameStrategy: (entity) => {
+    const slug = (entity as any).slug;
+    return slug ? `${entity.id.substring(0, 8)}-${slug}` : entity.id;
+  },
+});
+```
+
+This produces files like `d00acdc4-gerald-corson.yaml` instead of `d00acdc4-5678-9abc-def0-111111111111.yaml`. Lookups, existence checks, and deletes work transparently regardless of the filename on disk. See the [Storage Providers](./guide/storage-providers.md#custom-filename-strategy) guide for details.
+
 ## API Overview
 
 ### CRUD Operations

@@ -144,9 +144,47 @@ describe('NamespaceResolver', () => {
         });
     });
 
+    describe('resolve edge cases', () => {
+        it('marks inactive configured namespaces as not searchable', async () => {
+            resolver.register({
+                id: 'archived',
+                name: 'Archived',
+                active: false,
+            });
+
+            const resolution = await resolver.resolve(['archived']);
+            expect(resolution.references[0].searchable).toBe(false);
+        });
+
+        it('marks non-configured namespaces as searchable by default', async () => {
+            const resolution = await resolver.resolve(['unknown-ns']);
+            expect(resolution.references[0].searchable).toBe(true);
+        });
+    });
+
     describe('getPrimary', () => {
         it('returns default namespace', () => {
             expect(resolver.getPrimary()).toBe('default');
+        });
+    });
+
+    describe('initial configuration', () => {
+        it('loads pre-configured namespaces at creation', async () => {
+            const registry = createSchemaRegistry();
+            registry.register({ type: 'test', schema: BaseEntitySchema });
+            const provider = createMemoryProvider({ registry });
+            await provider.initialize();
+
+            const preConfigured = createNamespaceResolver({
+                provider,
+                namespaces: [
+                    { id: 'pre1', name: 'Pre One' },
+                    { id: 'pre2', name: 'Pre Two' },
+                ],
+            });
+
+            expect(await preConfigured.exists('pre1')).toBe(true);
+            expect(await preConfigured.exists('pre2')).toBe(true);
         });
     });
 
