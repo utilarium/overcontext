@@ -1,33 +1,26 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import typescriptEslint from "@typescript-eslint/eslint-plugin";
-import importPlugin from "eslint-plugin-import";
-import globals from "globals";
-import tsParser from "@typescript-eslint/parser";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
-});
+import typescriptEslint from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+import importPlugin from "eslint-plugin-import";
+import { fixupPluginRules } from "@eslint/compat";
+import globals from "globals";
 
 export default defineConfig([
     globalIgnores([
         "dist/**",
+        "coverage/**",
         "node_modules/**",
         "**/*.test.ts",
     ]),
     {
-        extends: compat.extends("eslint:recommended", "plugin:@typescript-eslint/recommended"),
+        files: ["**/*.ts"],
+
+        extends: [js.configs.recommended],
 
         plugins: {
             "@typescript-eslint": typescriptEslint,
-            "import": importPlugin,
+            "import": fixupPluginRules(importPlugin),
         },
 
         languageOptions: {
@@ -41,6 +34,8 @@ export default defineConfig([
         },
 
         rules: {
+            ...typescriptEslint.configs.recommended.rules,
+
             "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/explicit-function-return-type": "off",
 
@@ -66,6 +61,8 @@ export default defineConfig([
                 optionalDependencies: false,
                 peerDependencies: false,
             }],
+
+            "no-undef": "off",
 
             "no-console": ["error"],
 
