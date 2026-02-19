@@ -2,8 +2,13 @@
 
 Overcontext is a schema-driven framework for managing typed context entities.
 
+## Why Overcontext?
+
+The world is moving from prompt engineering to context engineering, but the default answer is always "write more Markdown." Overcontext is a reaction to that -- a structured, schema-validated approach to managing the people, projects, terms, and entities that give AI agents real knowledge about the world. Read the full story in [Why Overcontext?](./why-overcontext.md).
+
 ## Getting Started
 
+- [Why Overcontext?](./why-overcontext.md) - The story behind the project
 - [Defining Schemas](./defining-schemas.md) - Learn how to create entity schemas
 - [Storage Providers](./storage-providers.md) - Understand storage options
 - [Namespaces](./namespaces.md) - Organize context by domain
