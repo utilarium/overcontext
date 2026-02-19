@@ -13,6 +13,12 @@ interface DocSection {
 
 const DOC_SECTIONS: DocSection[] = [
     {
+        id: 'why-overcontext',
+        title: 'Why Overcontext?',
+        file: 'why-overcontext.md',
+        description: 'The story behind the project and how it fits in the context engineering landscape'
+    },
+    {
         id: 'getting-started',
         title: 'Getting Started',
         file: 'getting-started.md',
@@ -51,7 +57,7 @@ const DOC_SECTIONS: DocSection[] = [
 ];
 
 function App() {
-    const [activeSection, setActiveSection] = useState<string>('getting-started')
+    const [activeSection, setActiveSection] = useState<string>('why-overcontext')
     const [content, setContent] = useState<string>('')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -86,7 +92,7 @@ function App() {
 
     useEffect(() => {
         // Load initial section
-        loadSection('getting-started')
+        loadSection('why-overcontext')
     }, [])
 
     if (loading) {

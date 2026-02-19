@@ -2,6 +2,34 @@
 
 > Schema-driven framework for context management
 
+## Why Overcontext?
+
+The world is waking up to the idea that **context is king** when interacting with Large Language Models. As Andrej Karpathy put it, "context engineering" is "the delicate art and science of filling the context window with just the right information." The industry is shifting from prompt engineering to context engineering -- and the tooling ecosystem is racing to catch up.
+
+The current landscape is converging on a common pattern: **large collections of Markdown files**. Whether it's [CLAUDE.md](https://docs.anthropic.com/en/docs/claude-code/memory) for Claude Code, [AGENTS.md](https://github.com/agentsmd/agents.md) as an open standard under the Linux Foundation, [.cursor/rules/](https://docs.cursor.com/context/rules-for-ai) for Cursor, or [copilot-instructions.md](https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions) for GitHub Copilot -- the default answer to "how do I give my AI more context?" is always the same: write more Markdown.
+
+Markdown is a fine starting point, but it has limits. It's unstructured, unsearchable at the entity level, hard to layer across scopes, and impossible to validate. As systems move toward more agentic interaction patterns -- where AI agents dynamically search for and compose context at runtime -- we need something more structured.
+
+**Overcontext is a reaction to that.** It started as a strategy for managing structured context files about people, projects, and terminology to support transcription tools like [Protokoll](https://github.com/redaksjon/protokoll) and other tools under development. Protokoll transforms voice memos into organized, context-aware notes by maintaining a knowledge base of people, projects, and organizations as YAML files -- using that context to correct proper names, classify content, and route transcriptions to the right places. As Protokoll's context needs grew, it became clear that a general-purpose framework was needed: one that could not only *store* context entities but *retrieve*, *search*, *layer*, and *validate* them with the rigor that agentic systems demand.
+
+Overcontext provides that framework. It gives you schema-validated, type-safe context entities with hierarchical discovery, namespace isolation, and a query API -- the building blocks for context engineering that goes beyond flat files.
+
+### How Overcontext Compares
+
+The context management landscape is broad. Here's where Overcontext fits:
+
+| Approach | Examples | What They Do | What's Missing |
+|---|---|---|---|
+| **Agent instruction files** | CLAUDE.md, AGENTS.md, .cursorrules | Behavioral instructions for AI agents | No entity model, no search, no validation |
+| **Codebase-to-prompt tools** | [Repomix](https://github.com/yamadashy/repomix), [files-to-prompt](https://github.com/simonw/files-to-prompt), [yek](https://github.com/mohsen1/yek) | Serialize code into LLM-friendly formats | One-shot dumps, no structured entities or queries |
+| **AI memory services** | [Mem0](https://mem0.ai), [Letta](https://letta.com), [Zep](https://getzep.com) | Persistent memory via embeddings and knowledge graphs | Cloud-dependent, opaque storage, not file-based |
+| **MCP servers** | [Model Context Protocol](https://modelcontextprotocol.io) | Standardized protocol for connecting AI to data sources | A transport layer, not a storage or schema framework |
+| **Overcontext** | This library | Schema-validated entities with hierarchical discovery, namespaces, and search | Designed to be the structured layer *underneath* all of the above |
+
+Overcontext isn't trying to replace Markdown instruction files or MCP -- it's the structured entity layer that those systems can build on. Your `CLAUDE.md` can reference Overcontext entities. Your MCP server can serve them. Your CLI tools can query them. The context you maintain is schema-validated, version-controllable, and yours.
+
+---
+
 Overcontext provides infrastructure for defining and managing custom entity schemas. Unlike a library with predefined types, overcontext lets you define your own entity schemas using Zod and provides the storage, validation, discovery, and CLI building blocks to work with them.
 
 ## Features
