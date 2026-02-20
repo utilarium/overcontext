@@ -199,6 +199,10 @@ export const createFileSystemProvider = async (
         }
     };
 
+    // Cache the real basePath to handle symlinked temp directories (e.g., macOS /var/folders -> /private/var/folders).
+    // Computed lazily on first readEntity call once the directory exists.
+    let realBasePath: string | undefined;
+
     const readEntity = async <T extends BaseEntity>(
         filePath: string,
         type: string
@@ -214,8 +218,16 @@ export const createFileSystemProvider = async (
                 // which will throw ENOENT and be handled below.
                 realFilePath = filePath;
             }
-            const resolvedBase = path.resolve(basePath);
-            if (!realFilePath.startsWith(resolvedBase + path.sep) && realFilePath !== resolvedBase) {
+            // Resolve basePath's real path to handle symlinked parent directories.
+            // Fall back to path.resolve if basePath doesn't exist yet.
+            if (!realBasePath) {
+                try {
+                    realBasePath = await fs.realpath(basePath);
+                } catch {
+                    realBasePath = path.resolve(basePath);
+                }
+            }
+            if (!realFilePath.startsWith(realBasePath + path.sep) && realFilePath !== realBasePath) {
                 // eslint-disable-next-line no-console
                 console.warn(`Symlink traversal attempt detected: ${filePath} resolves to ${realFilePath}`);
                 return undefined;
