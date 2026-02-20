@@ -67,17 +67,19 @@ describe('generateUniqueId', () => {
         expect(id).toBe('test-name-4');
     });
 
-    it('falls back to timestamp after 100 attempts', async () => {
+    it('falls back to timestamp with random suffix after 100 attempts', async () => {
         const exists = async () => true; // Everything exists
 
         const id = await generateUniqueId('Test Name', exists);
-        expect(id).toMatch(/^test-name-\d+$/);
+        // Should contain timestamp and random suffix for uniqueness
+        expect(id).toMatch(/^test-name-\d+-[a-z0-9]+$/);
         expect(id.length).toBeGreaterThan('test-name-'.length);
     });
 
-    it('handles empty name', async () => {
+    it('handles empty name with fallback id', async () => {
         const exists = async () => false;
         const id = await generateUniqueId('', exists);
-        expect(id).toBe('');
+        // Empty slugify result should produce a fallback ID instead of empty string
+        expect(id).toMatch(/^entity-\d+-[a-z0-9]+$/);
     });
 });

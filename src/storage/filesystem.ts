@@ -35,6 +35,12 @@ export interface FileSystemProviderOptions extends StorageProviderOptions {
     filenameStrategy?: (entity: BaseEntity) => string;
 }
 
+/**
+ * Maximum number of entities allowed in a single batch operation.
+ * Prevents resource exhaustion from unbounded batch sizes.
+ */
+const MAX_BATCH_SIZE = 1000;
+
 export const createFileSystemProvider = async (
     options: FileSystemProviderOptions
 ): Promise<StorageProvider> => {
@@ -174,11 +180,8 @@ export const createFileSystemProvider = async (
             (f.endsWith('.yaml') || f.endsWith('.yml')) && f.startsWith(prefix)
         );
 
-        if (candidates.length === 1) {
-            return path.join(dir, candidates[0]);
-        }
-
-        // Multiple prefix matches — read and verify the id field
+        // Always verify the entity ID inside the file to prevent
+        // returning the wrong entity when IDs share a common prefix.
         for (const file of candidates) {
             const filePath = path.join(dir, file);
             const entity = await readEntity(filePath, type);
@@ -196,11 +199,40 @@ export const createFileSystemProvider = async (
         }
     };
 
+    // Cache the real basePath to handle symlinked temp directories (e.g., macOS /var/folders -> /private/var/folders).
+    // Computed lazily on first readEntity call once the directory exists.
+    let realBasePath: string | undefined;
+
     const readEntity = async <T extends BaseEntity>(
         filePath: string,
         type: string
     ): Promise<T | undefined> => {
         try {
+            // Resolve symlinks and verify the real path is within basePath
+            // to prevent symlink-based path traversal.
+            let realFilePath: string;
+            try {
+                realFilePath = await fs.realpath(filePath);
+            } catch {
+                // If realpath fails (e.g., file doesn't exist), fall through to readFile
+                // which will throw ENOENT and be handled below.
+                realFilePath = filePath;
+            }
+            // Resolve basePath's real path to handle symlinked parent directories.
+            // Fall back to path.resolve if basePath doesn't exist yet.
+            if (!realBasePath) {
+                try {
+                    realBasePath = await fs.realpath(basePath);
+                } catch {
+                    realBasePath = path.resolve(basePath);
+                }
+            }
+            if (!realFilePath.startsWith(realBasePath + path.sep) && realFilePath !== realBasePath) {
+                // eslint-disable-next-line no-console
+                console.warn(`Symlink traversal attempt detected: ${filePath} resolves to ${realFilePath}`);
+                return undefined;
+            }
+
             const content = await fs.readFile(filePath, 'utf-8');
             
             let parsed: unknown;
@@ -216,14 +248,31 @@ export const createFileSystemProvider = async (
                 return undefined;
             }
 
-            // Protect against prototype pollution from malicious YAML
-            // Only __proto__ is dangerous - constructor/prototype as string keys are safe
-            const parsedObj = parsed as Record<string, unknown>;
-            if (Object.prototype.hasOwnProperty.call(parsedObj, '__proto__')) {
+            // Protect against prototype pollution from malicious YAML.
+            // Recursively check for __proto__ keys at all nesting levels,
+            // since nested __proto__ can still cause pollution when objects
+            // are spread or assigned downstream.
+            const hasProtoKey = (obj: unknown): boolean => {
+                if (!obj || typeof obj !== 'object') return false;
+                if (Object.prototype.hasOwnProperty.call(obj, '__proto__')) return true;
+                for (const value of Object.values(obj as Record<string, unknown>)) {
+                    if (hasProtoKey(value)) return true;
+                }
+                if (Array.isArray(obj)) {
+                    for (const item of obj) {
+                        if (hasProtoKey(item)) return true;
+                    }
+                }
+                return false;
+            };
+
+            if (hasProtoKey(parsed)) {
                 // eslint-disable-next-line no-console
                 console.warn(`Potential prototype pollution attempt in ${filePath}: __proto__ key detected`);
                 return undefined;
             }
+
+            const parsedObj = parsed as Record<string, unknown>;
 
             // Validate against registered schema
             const result = registry.validateAs<T>(type, {
@@ -496,6 +545,11 @@ export const createFileSystemProvider = async (
             entities: T[],
             namespace?: string
         ): Promise<T[]> {
+            if (entities.length > MAX_BATCH_SIZE) {
+                throw new StorageAccessError(
+                    `Batch size ${entities.length} exceeds maximum of ${MAX_BATCH_SIZE}. Split into smaller batches.`
+                );
+            }
             const saved: T[] = [];
             for (const entity of entities) {
                 saved.push(await this.save(entity, namespace));
@@ -507,6 +561,11 @@ export const createFileSystemProvider = async (
             refs: Array<{ type: string; id: string }>,
             namespace?: string
         ): Promise<number> {
+            if (refs.length > MAX_BATCH_SIZE) {
+                throw new StorageAccessError(
+                    `Batch size ${refs.length} exceeds maximum of ${MAX_BATCH_SIZE}. Split into smaller batches.`
+                );
+            }
             let count = 0;
             for (const ref of refs) {
                 if (await this.delete(ref.type, ref.id, namespace)) {
