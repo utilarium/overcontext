@@ -186,6 +186,41 @@ const provider = createMemoryProvider({
 });
 ```
 
+### createFjellFsProvider
+
+Create a Fjell filesystem-backed storage provider (JSON).
+
+```typescript
+import { createFjellFsProvider } from '@utilarium/overcontext';
+
+const provider = await createFjellFsProvider({
+  basePath: string,
+  registry: SchemaRegistry,
+  name?: string,
+});
+```
+
+### createFjellGcsProvider
+
+Create a Fjell Google Cloud Storage-backed provider (JSON).
+
+```typescript
+import { createFjellGcsProvider } from '@utilarium/overcontext';
+
+const provider = await createFjellGcsProvider({
+  bucketName: string,
+  basePath?: string,
+  registry: SchemaRegistry,
+  name?: string,
+  querySafety?: {
+    maxScanFiles?: number,
+    warnThreshold?: number,
+    disableQueryOperations?: boolean,
+    downloadConcurrency?: number,
+  },
+});
+```
+
 ### createHierarchicalProvider
 
 Create a hierarchical provider that reads from multiple levels.
@@ -316,5 +351,30 @@ interface StorageProvider {
   getAll<T>(type: string, namespace?: string): Promise<T[]>;
   save<T>(entity: T, namespace?: string): Promise<T>;
   delete(type: string, id: string, namespace?: string): Promise<boolean>;
+}
+```
+
+### FjellBackendAdapter
+
+Adapter interface used by `FjellStorageProvider` to support multiple backends.
+
+```typescript
+interface FjellBackendAdapter {
+  initialize(): Promise<void>;
+  dispose(): Promise<void>;
+  isAvailable(): Promise<boolean>;
+
+  get(type: string, id: string, namespace?: string): Promise<Record<string, unknown> | undefined>;
+  getAll(type: string, namespace?: string): Promise<Record<string, unknown>[]>;
+  create(type: string, item: Record<string, unknown>, namespace?: string): Promise<Record<string, unknown>>;
+  update(type: string, id: string, item: Record<string, unknown>, namespace?: string): Promise<Record<string, unknown>>;
+  remove(type: string, id: string, namespace?: string): Promise<boolean>;
+  find(type: string, filter: EntityFilter, namespace?: string): Promise<Record<string, unknown>[]>;
+  exists(type: string, id: string, namespace?: string): Promise<boolean>;
+  count(type: string, filter?: EntityFilter, namespace?: string): Promise<number>;
+
+  listNamespaces(): Promise<string[]>;
+  namespaceExists(namespace: string): Promise<boolean>;
+  listTypes(namespace?: string): Promise<string[]>;
 }
 ```

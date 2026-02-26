@@ -5,7 +5,7 @@ Overcontext provides infrastructure for defining and managing custom entity sche
 ## Features
 
 - **Schema-Driven**: Register any Zod schema, get type-safe CRUD operations
-- **Storage Agnostic**: Filesystem and in-memory providers included, with custom filename strategies
+- **Storage Agnostic**: Filesystem (YAML), in-memory, and Fjell providers (JSON)
 - **Hierarchical Discovery**: Walk directory trees to find context at multiple levels
 - **Namespace Support**: Organize entities across multiple namespaces
 - **CLI Framework**: Reusable command builders for creating CLIs

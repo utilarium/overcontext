@@ -129,6 +129,71 @@ const provider = createMemoryProvider({
 });
 ```
 
+## Fjell Providers (JSON)
+
+Overcontext also supports Fjell-backed providers for JSON storage backends.
+
+### Fjell FS Provider
+
+Stores entities as JSON files through `@fjell/lib-fs`.
+
+```typescript
+import { createFjellFsProvider } from '@utilarium/overcontext';
+
+const provider = await createFjellFsProvider({
+  basePath: '/path/to/context-json',
+  registry,
+});
+```
+
+Directory layout:
+
+```
+<basePath>/<namespace>/<type>/<id>.json
+```
+
+Example:
+
+```
+context-json/
+└── workspace-a/
+    ├── person/
+    │   └── alice.json
+    └── project/
+        └── overcontext.json
+```
+
+### Fjell GCS Provider
+
+Stores entities as JSON objects in Google Cloud Storage through `@fjell/lib-gcs`.
+
+```typescript
+import { createFjellGcsProvider } from '@utilarium/overcontext';
+
+const provider = await createFjellGcsProvider({
+  bucketName: 'my-context-bucket',
+  basePath: 'contexts',
+  registry,
+  querySafety: {
+    maxScanFiles: 1000,
+    warnThreshold: 100,
+    downloadConcurrency: 10,
+  },
+});
+```
+
+Object layout:
+
+```
+<basePath>/<namespace>/<type>/<id>.json
+```
+
+### Custom Fjell Backends
+
+If you want to implement a custom Fjell backend, implement `FjellBackendAdapter` and pass it to `FjellStorageProvider`.
+
+`MemoryFjellAdapter` is also exported for tests and local development.
+
 ## Hierarchical Provider
 
 Reads from multiple context directories, writes to the closest.
@@ -183,6 +248,14 @@ observable.subscribe(event => {
   }
 });
 ```
+
+The observable wrapper is fully compatible with class-based providers, including `FjellStorageProvider`.
+
+## Backward Compatibility
+
+- Existing filesystem users are unaffected and can continue using YAML storage.
+- Fjell providers are opt-in and JSON-focused.
+- Migration from existing YAML data to Fjell JSON storage should be handled as an explicit migration step in your application rollout.
 
 ## Custom Providers
 
