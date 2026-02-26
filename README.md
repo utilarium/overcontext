@@ -35,7 +35,7 @@ Overcontext provides infrastructure for defining and managing custom entity sche
 ## Features
 
 - **Schema-Driven**: Register any Zod schema, get type-safe CRUD operations
-- **Storage Agnostic**: Filesystem and in-memory providers included
+- **Storage Agnostic**: Filesystem, in-memory, and Fjell-backed providers
 - **Hierarchical Discovery**: Walk directory trees to find context at multiple levels
 - **Namespace Support**: Organize entities across multiple namespaces
 - **CLI Framework**: Reusable command builders for creating CLIs
@@ -151,8 +151,12 @@ const workPeople = await ctx.getAll('person', 'work');
 
 - **Filesystem**: YAML files in directory structure
 - **Memory**: In-memory for testing
+- **Fjell FS**: JSON files via `@fjell/lib-fs`
+- **Fjell GCS**: JSON objects via `@fjell/lib-gcs`
 - **Hierarchical**: Multi-level discovery with override behavior
 - **Custom**: Implement your own
+
+Fjell providers are additive and do not change existing filesystem behavior. Existing users can continue using YAML-backed filesystem storage unchanged.
 
 ### Custom Filenames
 

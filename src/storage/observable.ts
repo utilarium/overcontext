@@ -26,7 +26,17 @@ export const createObservableProvider = (
     };
 
     return {
-        ...provider,
+        get name(): string {
+            return provider.name;
+        },
+
+        get location(): string {
+            return provider.location;
+        },
+
+        get registry() {
+            return provider.registry;
+        },
 
         subscribe(handler: StorageEventHandler): () => void {
             handlers.add(handler);
@@ -42,6 +52,30 @@ export const createObservableProvider = (
             emit({ type: 'storage:disposed', timestamp: new Date() });
             handlers.clear(); // Clear all handlers to prevent memory leaks
             await provider.dispose();
+        },
+
+        async isAvailable(): Promise<boolean> {
+            return provider.isAvailable();
+        },
+
+        async get<T extends BaseEntity>(type: string, id: string, namespace?: string): Promise<T | undefined> {
+            return provider.get<T>(type, id, namespace);
+        },
+
+        async getAll<T extends BaseEntity>(type: string, namespace?: string): Promise<T[]> {
+            return provider.getAll<T>(type, namespace);
+        },
+
+        async find<T extends BaseEntity>(filter: Parameters<StorageProvider['find']>[0]): Promise<T[]> {
+            return provider.find<T>(filter);
+        },
+
+        async exists(type: string, id: string, namespace?: string): Promise<boolean> {
+            return provider.exists(type, id, namespace);
+        },
+
+        async count(filter: Parameters<StorageProvider['count']>[0]): Promise<number> {
+            return provider.count(filter);
         },
 
         async save<T extends BaseEntity>(entity: T, namespace?: string): Promise<T> {
@@ -116,6 +150,18 @@ export const createObservableProvider = (
             });
 
             return count;
+        },
+
+        async listNamespaces(): Promise<string[]> {
+            return provider.listNamespaces();
+        },
+
+        async namespaceExists(namespace: string): Promise<boolean> {
+            return provider.namespaceExists(namespace);
+        },
+
+        async listTypes(namespace?: string): Promise<string[]> {
+            return provider.listTypes(namespace);
         },
     };
 };

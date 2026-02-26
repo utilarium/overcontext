@@ -4,3 +4,4 @@ export * from './errors';
 export * from './observable';
 export * from './filesystem';
 export * from './memory';
+export * from './fjell';
