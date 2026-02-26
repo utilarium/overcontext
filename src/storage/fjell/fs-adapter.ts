@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 
 import { createPrimaryFilesystemLibrary } from '@fjell/lib-fs';
@@ -133,7 +134,7 @@ export class FjellFsAdapter implements FjellBackendAdapter {
     }
 
     async listNamespaces(): Promise<string[]> {
-        let entries: fs.Dirent[];
+        let entries: Dirent[];
         try {
             entries = await fs.readdir(this.config.basePath, { withFileTypes: true });
         } catch {
@@ -160,7 +161,7 @@ export class FjellFsAdapter implements FjellBackendAdapter {
     async listTypes(namespace?: string): Promise<string[]> {
         const ns = this.resolveNamespace(namespace);
         const nsPath = path.join(this.config.basePath, ns);
-        let entries: fs.Dirent[];
+        let entries: Dirent[];
         try {
             entries = await fs.readdir(nsPath, { withFileTypes: true });
         } catch {
@@ -188,10 +189,7 @@ export class FjellFsAdapter implements FjellBackendAdapter {
         }
 
         const ns = this.resolveNamespace(namespace);
-        const library = createPrimaryFilesystemLibrary(type, `${ns}/${type}`, this.config.basePath, {
-            useJsonExtension: true,
-            autoCreateDirectories: true,
-        });
+        const library = createPrimaryFilesystemLibrary(type, `${ns}/${type}`, this.config.basePath);
         this.libraries.set(key, library);
         return library;
     }
